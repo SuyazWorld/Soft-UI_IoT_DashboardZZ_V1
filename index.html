@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Soft UI Dashboard</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ================= WARNA & TEMA (SOFT UI) ================= */
+:root {
+    --bg: #e6e9ef;
+    --card: #e6e9ef;
+    --text: #44475a;
+    --muted: #82869a;
+    --accent: #3fa9f5;
+    --danger: #ff5d5d;
+    --success: #00b894;
+    
+    /* Shadow Neumorphism Terang */
+    --shadow-dark: #c8cedc;
+    --shadow-light: #ffffff;
+    --inner-shadow: inset 6px 6px 12px #c8cedc, inset -6px -6px 12px #ffffff;
+}
+
+body.dark-mode {
+    --bg: #1e2128;
+    --card: #1e2128;
+    --text: #f8f9fa;
+    --muted: #a0a5b1;
+    --accent: #4dabf7;
+    --danger: #ff6b6b;
+    
+    /* Shadow Neumorphism Gelap - Disesuaikan agar lebih 'under' */
+    --shadow-dark: #121418; /* Lebih gelap untuk depth */
+    --shadow-light: #2a2e37; /* Shadow terang dibuat lebih redup & menyatu */
+    --inner-shadow: inset 6px 6px 12px #121418, inset -6px -6px 12px #2a2e37;
+}
+
+body {
+    margin: 0;
+    padding: 40px 20px;
+    min-height: 100vh;
+    background-color: var(--bg);
+    font-family: 'Inter', sans-serif;
+    color: var(--text);
+    transition: all 0.4s ease;
+}
+
+/* ================= HEADER (FIXED RESPONSIVE) ================= */
+.header {
+    max-width: 1000px;
+    margin: 0 auto 40px auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* Menghindari tabrakan di layar kecil */
+    gap: 20px;
+}
+
+.brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.header h2 {
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin: 0;
+    font-size: 24px;
+}
+
+.header small {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.badge-container {
+    display: flex;
+    gap: 12px;
+}
+
+.badge {
+    padding: 12px 18px;
+    border-radius: 16px;
+    background: var(--card);
+    box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+}
+
+.connected .status-dot { background: var(--success); box-shadow: 0 0 10px var(--success); }
+.disconnected .status-dot { background: var(--danger); }
+
+/* ================= GRID ================= */
+.grid {
+    max-width: 1000px;
+    margin: auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+}
+
+/* ================= CARD ================= */
+.card {
+    background: var(--card);
+    border-radius: 30px;
+    padding: 30px;
+    text-align: center;
+    /* Efek bayangan utama */
+    box-shadow: 10px 10px 20px var(--shadow-dark), -10px -10px 20px var(--shadow-light);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover { 
+    transform: translateY(-5px); 
+}
+
+.title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+}
+
+.value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+/* ================= BUTTONS ================= */
+.btn-group {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+button {
+    flex: 1;
+    padding: 14px;
+    border-radius: 15px;
+    border: none;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    background: var(--card);
+    color: var(--text);
+    box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+button:active {
+    box-shadow: var(--inner-shadow);
+    transform: scale(0.96);
+}
+
+.btn-on:hover { color: var(--accent); }
+.btn-off:hover { color: var(--danger); }
+
+/* ================= RESPONSIVE ================= */
+@media(max-width:900px){ 
+    .grid { grid-template-columns: repeat(2,1fr); } 
+}
+
+@media(max-width:600px){ 
+    .grid { grid-template-columns: 1fr; }
+    .header { justify-content: center; text-align: center; }
+    .brand { align-items: center; }
+}
+
+</style>
+</head>
+
+<body class="light-mode"> 
+
+<div class="header">
+    <div class="brand">
+        <h2>IoT DashboardZZ V1.1</h2>
+        <small>Simple Relays and Sensor Dashboards</small>
+    </div>
+    <div class="badge-container">
+        <div class="badge disconnected" id="mqttStatusBadge">
+            <span class="status-dot"></span>
+            <span id="mqttStatusText">MQTT: Disconnected</span>
+        </div>
+        <div class="badge" onclick="toggleTheme()">
+            <span id="themeIcon">🌙</span>
+        </div>
+    </div>
+</div>
+
+<div class="grid">
+    <div class="card">
+        <div class="title">Lampu Utama</div>
+        <div class="btn-group">
+            <button class="btn-on" onclick="fungsipublishled1('ON')">ON</button>
+            <button class="btn-off" onclick="fungsipublishled1('OFF')">OFF</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="title">Lampu Taman</div>
+        <div class="btn-group">
+            <button class="btn-on" onclick="fungsipublishled2('ON')">ON</button>
+            <button class="btn-off" onclick="fungsipublishled2('OFF')">OFF</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="title">Buzzer Alarm</div>
+        <div class="btn-group">
+            <button class="btn-on" onclick="fungsipublish_bz('ON')">ON</button>
+            <button class="btn-off" onclick="fungsipublish_bz('OFF')">OFF</button>
+        </div>
+    </div>
+
+    <div class="card"><div class="title">Status 1</div><div class="value" id="status1">--</div></div>
+    <div class="card"><div class="title">Status 2</div><div class="value" id="status2">--</div></div>
+    <div class="card"><div class="title">Status 3</div><div class="value" id="status3">--</div></div>
+
+    <div class="card"><div class="title">Ultrasonic</div><div class="value" id="ultras">--</div></div>
+    <div class="card"><div class="title">Suhu ESP32</div><div class="value" id="suhuzz">--</div></div>
+    <div class="card"><div class="title">Nilai Acak</div><div class="value" id="nilaiacak1">--</div></div>
+</div>
+
+<script>
+/* ===== UI LOGIC (DARK/LIGHT MODE) ===== */
+function toggleTheme(){
+    const body = document.body;
+    const icon = document.getElementById("themeIcon");
+    body.classList.toggle("dark-mode");
+    
+    icon.innerText = body.classList.contains("dark-mode") ? "☀️" : "🌙";
+}
+
+function updateMQTTStatus(isConnected) {
+    const badge = document.getElementById("mqttStatusBadge");
+    const text = document.getElementById("mqttStatusText");
+    
+    if(isConnected) {
+        badge.classList.replace("disconnected", "connected");
+        text.innerText = "MQTT: Connected";
+    } else {
+        badge.classList.replace("connected", "disconnected");
+        text.innerText = "MQTT: Disconnected";
+    }
+}
+</script>
+
+<script>
+// Logic MQTT tetap menggunakan yang sebelumnya (Sudah diperbaiki)
+const brokerUrl = "wss://broker.avisha.id:8084/mqtt"; 
+const connectionOptions = { 
+    username: "ARYZZ_SUYASOWORLD23", 
+    password: "ProjectProto12",
+    clean: true 
+}; 
+
+const client = mqtt.connect(brokerUrl, connectionOptions);
+
+const topicsensor_utama = "ARYZZ_SUYASOWORLD23/#";
+const topicSensor  = "ARYZZ_SUYASOWORLD23/DataOUT/ultrasonic";
+const topicSensor2 = "ARYZZ_SUYASOWORLD23/DataOUT/suhuESP";
+const topicSensor3 = "ARYZZ_SUYASOWORLD23/DataOUT/nilaiacak";
+const topicLampu1  = "ARYZZ_SUYASOWORLD23/Datain/Lampu1";
+const topicLampu2  = "ARYZZ_SUYASOWORLD23/Datain/Lampu2";
+const topicBZ      = "ARYZZ_SUYASOWORLD23/Datain/Bzz";
+
+client.on("connect", () => {
+    updateMQTTStatus(true); 
+    client.subscribe(topicsensor_utama, { qos: 1 }); 
+});
+
+client.on("offline", () => {
+    updateMQTTStatus(false);
+});
+
+client.on("message", (topiczx, message) => {
+    const msgString = message.toString();
+    if(topiczx === topicSensor2) document.getElementById("suhuzz").innerHTML = msgString;
+    if(topiczx === topicSensor)  document.getElementById("ultras").innerHTML = msgString;
+    if(topiczx === topicSensor3) document.getElementById("nilaiacak1").innerHTML = msgString;
+    if(topiczx === topicLampu1)  document.getElementById("status1").innerHTML = msgString;
+    if(topiczx === topicLampu2)  document.getElementById("status2").innerHTML = msgString;
+    if(topiczx === topicBZ)      document.getElementById("status3").innerHTML = msgString;
+});
+
+const pubOptions = { qos: 1, retain: true };
+function fungsipublishled1(message) { client.publish(topicLampu1, message, pubOptions); }
+function fungsipublishled2(message) { client.publish(topicLampu2, message, pubOptions); }
+function fungsipublish_bz(message) { client.publish(topicBZ, message, pubOptions); }
+</script>
+
+</body>
+</html>
