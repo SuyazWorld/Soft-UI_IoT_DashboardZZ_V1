@@ -205,8 +205,8 @@ button:active {
     <div class="card">
         <div class="title">Buzzer Alarm</div>
         <div class="btn-group">
-            <button style="color:var(--accent)" onclick="fungsipublish_bz('ON')">ON</button>
-            <button style="color:var(--muted)" onclick="fungsipublish_bz('OFF')">OFF</button>
+            <button style="color:var(--success)" onclick="fungsipublish_bz('ON')">ON</button>
+            <button style="color:var(--danger)" onclick="fungsipublish_bz('OFF')">OFF</button>
         </div>
     </div>
 
@@ -322,12 +322,28 @@ client.on("message", function(topic, message) {
     // CEK: Apakah topiknya status LAMPU 1? (Supaya teks ON/OFF di bawah tombol update otomatis)
     else if (topic === "ARYZZ_SUYASOWORLD23/Datain/Lampu1") {
         document.getElementById("status1").innerText = msg;
+        // ubah warna kalo pesan "ON" atau "OFF"
+        if (msg === "ON") {
+            document.getElementById("status1").style.color = "#00b894"; // Jadi Hijau
+        } else {
+            document.getElementById("status1").style.color = "#ff5d5d"; // Jadi Merah
+        }
     }
     else if (topic === "ARYZZ_SUYASOWORLD23/Datain/Lampu2") {
         document.getElementById("status2").innerText = msg;
+        if (msg === "ON") {
+            document.getElementById("status2").style.color = "#00b894"; // Jadi Hijau
+        } else {
+            document.getElementById("status2").style.color = "#ff5d5d"; // Jadi Merah
+        }
     }
     else if (topic === "ARYZZ_SUYASOWORLD23/Datain/Bzz") {
         document.getElementById("status3").innerText = msg;
+        if (msg === "ON") {
+            document.getElementById("status3").style.color = "#00b894"; // Jadi Hijau
+        } else {
+            document.getElementById("status3").style.color = "#ff5d5d"; // Jadi Merah
+        }
     }
 });
 
